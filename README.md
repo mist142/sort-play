@@ -1,4 +1,7 @@
+> i haven't reviewed this code for safety yet, just had Claude make it for personal use and thought i'd share. use at ur own risk.
+
 > [!NOTE]
+> 
 > ## Sort-Play (OpenRouter fork)
 >
 > This is a fork of [hoeci/sort-play](https://github.com/hoeci/sort-play) that swaps the **AI Pick** feature from Google Gemini to [OpenRouter](https://openrouter.ai), so it works with **free** AI models.
@@ -19,8 +22,6 @@
 > **Planned:** [AOTY (Album of the Year)](https://www.albumoftheyear.org) integration is coming in a future update.
 >
 > **Disclaimer:** The code changes in this fork and this description were written by Claude (Anthropic's AI assistant).
-> 
-i haven't reviewed this code for safety yet, just had Claude make it for personal use and thought I'd share. Use at your own risk.
 
 ---
 
