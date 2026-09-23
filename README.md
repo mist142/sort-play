@@ -1,3 +1,25 @@
+> [!NOTE]
+> ## Sort-Play (OpenRouter fork)
+>
+> This is a fork of [hoeci/sort-play](https://github.com/hoeci/sort-play) that swaps the **AI Pick** feature from Google Gemini to [OpenRouter](https://openrouter.ai), so it works with **free** AI models.
+>
+> **What's different**
+> - AI Pick uses OpenRouter's free models (Qwen, Llama, DeepSeek, and others). Google/Gemini models are excluded.
+> - The model list is fetched live from OpenRouter, so it stays current as free models change.
+> - You use your own free OpenRouter API key: **Settings → Set OpenRouter API Key**.
+> - Everything else is unchanged from the original.
+>
+> **Getting a key**
+> 1. Sign up at [openrouter.ai](https://openrouter.ai) and go to **Keys → Create Key**.
+> 2. Leave the credit limit blank or set it to 0. The free models cost nothing.
+> 3. Copy the key (it starts with `sk-or-`) and paste it into Sort-Play's settings.
+>
+> Free models are rate-limited, so if a request fails, wait a moment or pick a different model.
+>
+> **Disclaimer:** The code changes in this fork and this description were written by Claude (Anthropic's AI assistant). They haven't been reviewed by the original author. Use at your own risk.
+
+---
+
 <div align="center">
 
 <img src="https://github.com/user-attachments/assets/52d8dea1-2fe3-46ba-a201-817cf7a31408" alt="Sort-Play Showcase" width="100%">
@@ -230,15 +252,15 @@ Filter any playlist or discography by genre with a powerful, interactive modal.
 </details>
 
 <details>
-<summary><b>➕ AI Pick</b> - Filter tracks using natural language prompts with Google Gemini.</summary>
+<summary><b>➕ AI Pick</b> - Filter tracks using natural language prompts with free AI models via OpenRouter.</summary>
 <br>
 
 Use AI to select specific songs from your current list based on your prompt.
 *   **Context-Aware:** Picks tracks directly from the current playlist, album, or artist page.
-*   **Powered by Gemini:** Utilizes Google's Gemini models for intelligent track selection.
+*   **Powered by OpenRouter:** Uses free open models (Qwen, Llama, DeepSeek, etc.) for track selection.
 *   **Customizable Instructions:** Edit the AI's system instructions to fine-tune its behavior.
 *   **Advanced Controls:** Choose models and toggle data sources like song statistics and lyrics.
-*   **Use Your Own Key:** Provide your own free Google Gemini API key for extended usage.
+*   **Use Your Own Key:** Requires your own free OpenRouter API key.
 *   **Prompt Library & History:** Save your favorite AI prompts as presets and easily access your recent prompt history.
 </details>
 

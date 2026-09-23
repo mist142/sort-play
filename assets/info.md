@@ -56,7 +56,7 @@ Filter by range sliders (Release Date, Date Added, Duration, Play Count, Popular
 Filter by genre using Spotify Track data (with optional toggles for Last.fm, Deezer, and EveryNoise). Browse with track counts, search, include/exclude modes, and "match all" option.
 
 ### ➕ AI Pick
-Use AI to select specific songs from your current list based on natural language prompts. Powered by Google Gemini with customizable instructions, model selection, and data toggles.
+Use AI to select specific songs from your current list based on natural language prompts. Powered by free OpenRouter models with customizable instructions, model selection, and data toggles.
 
 ### ➕ Local File Integration
 Fully supported across sorting, custom/genre filtering, dynamic playlists, and analysis tools. Automatic conversion to Spotify tracks when processing. Dedicated tool converts Local Files library to a Spotify playlist with detailed export reports.

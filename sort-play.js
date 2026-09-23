@@ -114,8 +114,7 @@
   const STORAGE_KEY_ARTIST_DISCOGRAPHY_DEDUP_MODE = "sort-play-artist-discography-dedup-mode";
   const STORAGE_KEY_LFM_OVERRIDES = "sort-play-lfm-overrides";
   const STORAGE_KEY_LFM_COMMENTS_COLLAPSED = "sort-play-lfm-comments-collapsed";
-  const STORAGE_KEY_GEMINI_API_KEY = "sort-play-gemini-api-key";
-  const STORAGE_KEY_GEMINI_IS_PAID = "sort-play-gemini-is-paid";
+  const STORAGE_KEY_OPENROUTER_API_KEY = "sort-play-openrouter-api-key";
   const STORAGE_KEY_AI_PROMPT_HISTORY = "sort-play-ai-prompt-history";
   const STORAGE_KEY_AI_PROMPT_PRESETS = "sort-play-ai-prompt-presets";
   const STORAGE_KEY_FILTER_PRESETS = "sort-play-filter-presets";
@@ -190,8 +189,8 @@
     STORAGE_KEY_MY_SCROBBLES_DISPLAY_MODE, STORAGE_KEY_KEY_DISPLAY_MODE,
     STORAGE_KEY_SHOW_LIKE_BUTTON, STORAGE_KEY_LIKE_BUTTON_CONFIG, STORAGE_KEY_LASTFM_AUTOCORRECT,
     STORAGE_KEY_ARTIST_DISCOGRAPHY_DEDUP_MODE, STORAGE_KEY_LFM_OVERRIDES,
-    STORAGE_KEY_LFM_COMMENTS_COLLAPSED, STORAGE_KEY_GEMINI_API_KEY, 
-    STORAGE_KEY_GEMINI_IS_PAID, STORAGE_KEY_AI_PROMPT_HISTORY, 
+    STORAGE_KEY_LFM_COMMENTS_COLLAPSED, STORAGE_KEY_OPENROUTER_API_KEY,
+    STORAGE_KEY_AI_PROMPT_HISTORY,
     STORAGE_KEY_AI_PROMPT_PRESETS, STORAGE_KEY_FILTER_PRESETS, 
     STORAGE_KEY_KEYWORD_GROUPS, STORAGE_KEY_TITLE_ALBUM_KEYWORDS, 
     STORAGE_KEY_ARTIST_KEYWORDS, STORAGE_KEY_MATCH_WHOLE_WORD,
@@ -204,14 +203,32 @@
     STORAGE_KEY_CF_RELEASE_DATE_FORMAT, STORAGE_KEY_CF_MY_SCROBBLES_MODE, STORAGE_KEY_CF_KEY_MODE,
     STORAGE_KEY_PRESERVE_DATE_ADDED, STORAGE_KEY_DEDICATED_OVERRIDES
   ];
-  const AI_MODELS = [
-    { id: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", requiresCustomKey: true },
-    { id: "gemini-flash-latest", label: "Gemini Flash Latest", requiresCustomKey: false },
-    { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash", requiresCustomKey: false },
-    { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", requiresCustomKey: false },
-    { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite Latest", requiresCustomKey: false }
+  let AI_MODELS = [
+    { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B (free)", contextLength: 65536 }
   ];
-  const DEFAULT_AI_MODEL = AI_MODELS[1].id;
+  const DEFAULT_AI_MODEL = AI_MODELS[0].id;
+
+  async function fetchOpenRouterFreeModels() {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/models");
+      if (!res.ok) return;
+      const { data } = await res.json();
+      const freeModels = (data || [])
+        .filter(m => m.id.endsWith(":free") && !/gemini|gemma|google\//i.test(m.id))
+        .sort((a, b) => {
+          const general = /qwen|llama|deepseek|mistral|gpt-oss/i;
+          const rank = general.test(b.id) - general.test(a.id);
+          return rank || (b.context_length || 0) - (a.context_length || 0);
+        })
+        .map(m => ({ id: m.id, label: m.name || m.id, contextLength: m.context_length || 32768 }));
+      if (freeModels.length > 0) {
+        AI_MODELS = freeModels;
+        if (!AI_MODELS.some(m => m.id === selectedAiModel)) selectedAiModel = AI_MODELS[0].id;
+      }
+    } catch (e) {
+      console.error("[Sort-Play] Failed to fetch OpenRouter model list", e);
+    }
+  }
   const DEFAULT_FR_CONFIG = { keywords: [], filterMode: 'exclude', matchWholeWord: false, filterTitle: true, filterAlbum: true, versions: { live: 'all', remix: 'all', acoustic: 'all', instrumental: 'all' }, artistFilterMode: 'exclude', selectedArtists: [] };
   const STRICT_VERSION_REGEX_STR = "(?:\\(|\\[|-).*?\\b";
   const STRICT_LIVE_REGEX = new RegExp(STRICT_VERSION_REGEX_STR + "live\\b.*?(?:\\)|\\]|$)", "i");
@@ -324,7 +341,6 @@
   let s_Access_Token = null;
   let s_Token_Exp = 0;
   let lfmKeyIndex = 0;
-  let googleAiSdk = null;
   let colorThiefLib = null;
   let genrePlaylistsCache = null;
   let userSystemInstruction;
@@ -2465,43 +2481,6 @@
     return key;
   }
 
-  let Ge_mini_Key_Pool = [];
-
-  async function fetchGeminiKeys() {
-    try {
-      const cachedVersion = localStorage.getItem("sort-play-gemini-key-version");
-      if (cachedVersion === REMOTE_KEY_VERSION) {
-        const cachedKeys = localStorage.getItem("sort-play-gemini-keys");
-        if (cachedKeys) {
-          try {
-            Ge_mini_Key_Pool = JSON.parse(cachedKeys);
-            if (Ge_mini_Key_Pool.length > 0) return;
-          } catch(err) {}
-        }
-      }
-
-      const res = await fetch("https://gm-token-proxy.niko2nio2.workers.dev/", {
-        headers: { "X-Sort-Play-Access": "sp-token-request-v1" }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        Ge_mini_Key_Pool = data.keys || [];
-        if (Ge_mini_Key_Pool.length > 0) {
-          localStorage.setItem("sort-play-gemini-keys", JSON.stringify(Ge_mini_Key_Pool));
-          localStorage.setItem("sort-play-gemini-key-version", REMOTE_KEY_VERSION);
-        }
-      }
-    } catch (e) {
-      console.error("[Sort-Play] Failed to fetch Gemini keys", e);
-    }
-  }
-  
-  function Ge_mini_Key() {
-    if (Ge_mini_Key_Pool.length === 0) return null;
-    const randomIndex = Math.floor(Math.random() * Ge_mini_Key_Pool.length);
-    return Ge_mini_Key_Pool[randomIndex];
-  }
-  
   async function fetchLfmWithGateway(params) {
     if (L_F_M_Key_Pool.length === 0) await fetchLastFmKeys();
     let networkErrorRetries = 0;
@@ -3310,33 +3289,6 @@
     await idb.set('aiData', cacheKey, trackData);
   }
   
-  async function loadGoogleAI() {
-    if (googleAiSdk) {
-      return googleAiSdk;
-    }
-    
-    try {
-      const sdkModule = await import("https://cdn.jsdelivr.net/npm/@google/genai@1.20.0/+esm");
-      
-      googleAiSdk = sdkModule.GoogleGenAI; 
-      if (!googleAiSdk) {
-        throw new Error('GoogleGenAI constructor not found in loaded SDK module');
-      }
-      
-      return googleAiSdk;
-    } catch (error) {
-      console.error('Error loading Google Gen AI SDK:', error);
-      throw error;
-    }
-  }
-  
-  try {
-    await loadGoogleAI();
-  } catch (error) {
-    console.error("Failed to load Google AI SDK:", error);
-  }
-
-  
   async function loadColorThief() {
     if (colorThiefLib) {
         return colorThiefLib;
@@ -3883,9 +3835,9 @@
                 style="padding: 4px 16px; height: 32px; border-radius: 20px; border: none; cursor: pointer; background-color: #333333; color: white; font-weight: 550; font-size: 13px; text-transform: uppercase; transition: all 0.04s ease;">
           Set Last.fm Username
         </button>
-        <button id="setGeminiApiKey" class="main-buttons-button"
+        <button id="setOpenRouterApiKey" class="main-buttons-button"
                 style="padding: 4px 16px; height: 32px; border-radius: 20px; border: none; cursor: pointer; background-color: #333333; color: white; font-weight: 550; font-size: 13px; text-transform: uppercase; transition: all 0.04s ease;">
-          Set Gemini API Key
+          Set OpenRouter API Key
         </button>
     </div>
 
@@ -4698,7 +4650,7 @@
     const albumLastScrobbledDropdownContainer = modalContainer.querySelector("#albumLastScrobbledDropdownContainer");
     const artistLastScrobbledDropdownContainer = modalContainer.querySelector("#artistLastScrobbledDropdownContainer");
     const removeDateAddedToggle = modalContainer.querySelector("#removeDateAdded input");
-    const setGeminiApiKeyButton = modalContainer.querySelector("#setGeminiApiKey");
+    const setOpenRouterApiKeyButton = modalContainer.querySelector("#setOpenRouterApiKey");
     const setLastFmUsernameButton = modalContainer.querySelector("#setLastFmUsername");
     const lastFmAutocorrectToggle = modalContainer.querySelector("#lastFmAutocorrectToggle");
     const manageLfmOverridesBtn = modalContainer.querySelector("#manageLfmOverridesBtn");
@@ -4976,15 +4928,15 @@
         });
     }
 
-    setGeminiApiKeyButton.addEventListener("click", () => {
-        showGeminiApiKeyModal();
+    setOpenRouterApiKeyButton.addEventListener("click", () => {
+        showOpenRouterApiKeyModal();
     });
-    
+
     setLastFmUsernameButton.addEventListener("click", () => {
         showLastFmUsernameModal();
     });
 
-    addHoverEffect(setGeminiApiKeyButton, "#333333", "#444444");
+    addHoverEffect(setOpenRouterApiKeyButton, "#333333", "#444444");
     addHoverEffect(setLastFmUsernameButton, "#333333", "#444444");
 
     lastFmAutocorrectToggle.addEventListener("change", async () => {
@@ -16496,21 +16448,12 @@
   async function showAiPickModal(tracks, currentUri) {
     const abortController = new AbortController();
     
-    const userApiKey = (localStorage.getItem(STORAGE_KEY_GEMINI_API_KEY) || "").trim();
-    const isPaidKey = localStorage.getItem(STORAGE_KEY_GEMINI_IS_PAID) === "true";
+    const userApiKey = (localStorage.getItem(STORAGE_KEY_OPENROUTER_API_KEY) || "").trim();
     const hasCustomKey = userApiKey.length > 0;
-    
-    const currentModelConfig = AI_MODELS.find(m => m.id === selectedAiModel);
-    if ((!hasCustomKey || !isPaidKey) && currentModelConfig && currentModelConfig.requiresCustomKey) {
-        selectedAiModel = DEFAULT_AI_MODEL;
-        saveSettings();
-    }
 
     const aiModelOptionsHtml = AI_MODELS.map(model => {
         const isSelected = selectedAiModel === model.id ? "selected" : "";
-        const isDisabled = (!isPaidKey && model.requiresCustomKey) ? "disabled" : "";
-        const labelSuffix = (!isPaidKey && model.requiresCustomKey) ? " (Paid Key Req.)" : "";
-        return `<option value="${model.id}" ${isSelected} ${isDisabled}>${model.label}${labelSuffix}</option>`;
+        return `<option value="${model.id}" ${isSelected}>${model.label}</option>`;
     }).join('');
 
     const overlay = document.createElement("div");
@@ -16815,7 +16758,13 @@ shadowRoot.innerHTML = `
         showNotification("Please enter a request.", true);
         return;
       }
-      
+      if (!hasCustomKey) {
+        showNotification("Please set your OpenRouter API Key first.", true);
+        closeModal();
+        setTimeout(() => showOpenRouterApiKeyModal(), 350);
+        return;
+      }
+
       let history = JSON.parse(localStorage.getItem(STORAGE_KEY_AI_PROMPT_HISTORY) || '[]');
       history = history.filter(p => p !== userPrompt);
       history.unshift(userPrompt);
@@ -16844,12 +16793,9 @@ shadowRoot.innerHTML = `
             throw new Error('No tracks found to analyze after conversion');
         }
 
-        if (Ge_mini_Key_Pool.length === 0) await fetchGeminiKeys();
-        const userApiKey = localStorage.getItem(STORAGE_KEY_GEMINI_API_KEY) || Ge_mini_Key();
-  
-        selectedAiModel = modelSelect.value; 
-  
-        const aiResponse = await queryGeminiWithPlaylistTracks(
+        selectedAiModel = modelSelect.value;
+
+        const aiResponse = await queryOpenRouterWithPlaylistTracks(
           convertedTracks,
           userPrompt,
           userApiKey,
@@ -17346,7 +17292,7 @@ shadowRoot.innerHTML = `
     return { prunedTracks, notification };
   }
 
-  async function queryGeminiWithPlaylistTracks(tracks, userPrompt, apiKey, maxRetries = 3, initialDelay = 1000, includeSongStats = true, includeLyrics = true, modelName) {
+  async function queryOpenRouterWithPlaylistTracks(tracks, userPrompt, apiKey, maxRetries = 3, initialDelay = 1000, includeSongStats = true, includeLyrics = true, modelName) {
     let enrichedTracksCache = [];
     let tracksToProcess = [];
     let tracksNeedingLyrics = [];
@@ -17372,7 +17318,8 @@ shadowRoot.innerHTML = `
         }
     }
 
-    let fullPrompt;
+    let combinedSystemInstruction;
+    let userMessageContent;
 
     try {
         if (tracksToProcess.length > 0) {
@@ -17439,19 +17386,18 @@ shadowRoot.innerHTML = `
 
         const tracksWithStats = enrichedTracksCache.filter(track => track !== null);
         const userSystemInstruction = localStorage.getItem(STORAGE_KEY_USER_SYSTEM_INSTRUCTION_v2) || DEFAULT_USER_SYSTEM_INSTRUCTION_v2;
-        const combinedSystemInstruction = `${userSystemInstruction}\n${FIXED_SYSTEM_INSTRUCTION}`;
+        combinedSystemInstruction = `${userSystemInstruction}\n${FIXED_SYSTEM_INSTRUCTION}`;
         const userRequestPayload = `\n\nUser Request: ${userPrompt}\n\nGIVE PICKED TRACK URI's`;
 
-        const maxPromptSizeBytes = modelName.includes('pro')
-            ? 285 * 1024
-            : 585 * 1024;
+        const contextLength = AI_MODELS.find(m => m.id === modelName)?.contextLength || 32768;
+        const maxPromptSizeBytes = Math.min(585 * 1024, Math.floor(contextLength * 2.5));
 
         const { prunedTracks, notification } = pruneTracksForApiLimit(tracksWithStats, combinedSystemInstruction, userRequestPayload, maxPromptSizeBytes);
         if (notification) {
             showNotification(notification, 'warning');
         }
         const trackDataPayload = `Playlist Tracks:\n${JSON.stringify(prunedTracks, null, 2)}`;
-        fullPrompt = `${combinedSystemInstruction}\n\n${trackDataPayload}\n\n${userRequestPayload}`;
+        userMessageContent = `${trackDataPayload}\n\n${userRequestPayload}`;
 
     } catch (dataPrepError) {
         console.error("A critical error occurred during the data preparation phase:", dataPrepError);
@@ -17460,32 +17406,33 @@ shadowRoot.innerHTML = `
 
     let retries = 0;
     let delay = initialDelay;
-    let currentApiKey = apiKey;
-    const usedKeys = new Set([currentApiKey]);
 
     while (retries < maxRetries) {
         try {
-            const GoogleGenAI = await loadGoogleAI();
-            if (!GoogleGenAI) throw new Error('Failed to load Google AI SDK');
-            const ai = new GoogleGenAI({ apiKey: currentApiKey });
-
-            const result = await ai.models.generateContent({
-                model: modelName,
-                contents: fullPrompt,
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-                    { category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "BLOCK_NONE" }
-                ]
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json",
+                    "Authorization": `Bearer ${apiKey}`,
+                    "X-Title": "Sort-Play"
+                },
+                body: JSON.stringify({
+                    model: modelName,
+                    messages: [
+                        { role: "system", content: combinedSystemInstruction },
+                        { role: "user", content: userMessageContent }
+                    ]
+                })
             });
 
-            if (result?.promptFeedback?.blockReason) {
-                throw new Error(`Blocked for ${result.promptFeedback.blockReason}`);
+            if (!response.ok) {
+                const errBody = await response.text();
+                throw new Error(`${response.status}: ${errBody}`);
             }
 
-            const responseText = result.text;
+            const result = await response.json();
+            const responseText = result.choices?.[0]?.message?.content || "";
+
             const uriRegex = /spotify:track:[a-zA-Z0-9]{22}/g;
             let matches = responseText.match(uriRegex);
 
@@ -17493,29 +17440,14 @@ shadowRoot.innerHTML = `
                 console.log("No Spotify track URIs found in AI response.");
                 return [];
             }
-            
+
             return [...new Set(matches)];
 
         } catch (error) {
-            console.error(`Error during Gemini request (Attempt ${retries + 1}):`, error);
-
-            if (error.toString().includes('429')) {
-                console.log('[Sort-Play AI] Quota exceeded. Rotating to a new API key...');
-                if (Ge_mini_Key_Pool.length === 0) await fetchGeminiKeys();
-                let newKey;
-                if (usedKeys.size < Ge_mini_Key_Pool.length) {
-                    do { newKey = Ge_mini_Key(); } while (usedKeys.has(newKey));
-                } else {
-                    console.warn('[Sort-Play AI] All keys in the pool have been tried. Re-using a random key.');
-                    newKey = Ge_mini_Key(); 
-                }
-                currentApiKey = newKey;
-                usedKeys.add(currentApiKey);
-                console.log(`[Sort-Play AI] Retrying with new key: ...${currentApiKey.slice(-4)}`);
-            }
+            console.error(`Error during OpenRouter request (Attempt ${retries + 1}):`, error);
 
             if (retries === maxRetries - 1) {
-                throw new Error(`Failed to get a valid response from Gemini after ${maxRetries} retries.`);
+                throw new Error(`Failed to get a valid response from OpenRouter after ${maxRetries} retries.`);
             }
             retries++;
             await new Promise(resolve => setTimeout(resolve, delay));
@@ -17524,12 +17456,12 @@ shadowRoot.innerHTML = `
     }
   }
 
-  function showGeminiApiKeyModal() {
+  function showOpenRouterApiKeyModal() {
     showSimpleInputModal({
-        title: "Gemini API Key",
-        inputValue: localStorage.getItem(STORAGE_KEY_GEMINI_API_KEY) || "",
-        inputPlaceholder: "Enter your API key (optional)",
-        subtextHtml: `<a href="https://aistudio.google.com/api-keys" target="_blank" style="color: #1ED760; font-size: 14px; margin-left: 2px; margin-top: 4px; text-decoration: none;">Get the free API key from here</a>`,
+        title: "OpenRouter API Key",
+        inputValue: localStorage.getItem(STORAGE_KEY_OPENROUTER_API_KEY) || "",
+        inputPlaceholder: "Enter your OpenRouter API key (sk-or-...)",
+        subtextHtml: `<a href="https://openrouter.ai/settings/keys" target="_blank" style="color: #1ED760; font-size: 14px; margin-left: 2px; margin-top: 4px; text-decoration: none;">Get a free API key from OpenRouter</a>`,
         onSave: async (apiKey, saveButton, closeModal) => {
             saveButton.disabled = true;
             saveButton.style.backgroundColor = "#FFFFFFB3";
@@ -17537,27 +17469,29 @@ shadowRoot.innerHTML = `
 
             if (apiKey) {
                 try {
-                    const proModelId = AI_MODELS.find(m => m.requiresCustomKey)?.id;
-                    if (proModelId) {
-                        const GoogleGenAI = await loadGoogleAI();
-                        const ai = new GoogleGenAI({ apiKey: apiKey });
-                        await ai.models.generateContent({ model: proModelId, contents: "1" });
+                    const response = await fetch("https://openrouter.ai/api/v1/auth/key", {
+                        headers: { "Authorization": `Bearer ${apiKey}` }
+                    });
+
+                    if (response.status === 401) {
+                        throw new Error("Invalid API key");
                     }
-                    localStorage.setItem(STORAGE_KEY_GEMINI_API_KEY, apiKey);
-                    localStorage.setItem(STORAGE_KEY_GEMINI_IS_PAID, "true");
-                    showNotification("Paid Gemini API key verified and saved!");
+
+                    localStorage.setItem(STORAGE_KEY_OPENROUTER_API_KEY, apiKey);
+                    showNotification("OpenRouter API key verified and saved!");
+                    closeModal();
                 } catch (error) {
-                    console.warn("[Sort-Play] Pro model check failed, assuming free tier key:", error);
-                    localStorage.setItem(STORAGE_KEY_GEMINI_API_KEY, apiKey);
-                    localStorage.setItem(STORAGE_KEY_GEMINI_IS_PAID, "false");
-                    showNotification("Free Gemini API key saved. (Pro models disabled)");
+                    console.warn("[Sort-Play] OpenRouter API key verification failed:", error);
+                    showNotification("That API key could not be verified. Please check it and try again.", true);
+                    saveButton.disabled = false;
+                    saveButton.style.backgroundColor = "";
+                    saveButton.textContent = "Save";
                 }
             } else {
-                localStorage.removeItem(STORAGE_KEY_GEMINI_API_KEY);
-                localStorage.removeItem(STORAGE_KEY_GEMINI_IS_PAID);
-                showNotification("Gemini API key cleared.");
+                localStorage.removeItem(STORAGE_KEY_OPENROUTER_API_KEY);
+                showNotification("OpenRouter API key cleared.");
+                closeModal();
             }
-            closeModal();
         }
     });
   }
@@ -35051,32 +34985,12 @@ shadowRoot.innerHTML = `
                 sortType: "aiPick",
                 onClick: async function (event) {
                   event.stopPropagation();
-                  if (Ge_mini_Key_Pool.length === 0) await fetchGeminiKeys();
-                  const userApiKey = localStorage.getItem("sort-play-gemini-api-key");
-                  if (!userApiKey || Ge_mini_Key_Pool.includes(userApiKey)) {  
-                    const confirmed = await showConfirmationModal({
-                        title: "API Key Warning",
-                        description: "You are using the default API key for AI Pick. For extended usage, please use your own API key.",
-                        confirmText: "Set Free API Key",
-                        cancelText: "Continue Anyway"
-                    });
-                    
-                    if (confirmed === 'confirm') {
-                        setTimeout(() => showGeminiApiKeyModal(), 350);
-                    } else if (confirmed === 'cancel') {
-                        menuButtons.forEach((btn) => {
-                            if (btn.tagName.toLowerCase() === 'button' && !btn.disabled) btn.style.backgroundColor = "transparent";
-                        });
-                        await handleSortAndCreatePlaylist("aiPick");
+                  menuButtons.forEach((btn) => {
+                    if (btn.tagName.toLowerCase() === 'button' && !btn.disabled) {
+                      btn.style.backgroundColor = "transparent";
                     }
-                  } else {
-                    menuButtons.forEach((btn) => {
-                      if (btn.tagName.toLowerCase() === 'button' && !btn.disabled) {
-                        btn.style.backgroundColor = "transparent";
-                      }
-                    });
-                    await handleSortAndCreatePlaylist("aiPick");
-                  }
+                  });
+                  await handleSortAndCreatePlaylist("aiPick");
                 },
             }
         ]
@@ -55496,7 +55410,7 @@ shadowRoot.innerHTML = `
   
   loadSettings();
   fetchLastFmKeys();
-  fetchGeminiKeys();
+  fetchOpenRouterFreeModels();
 
   if (showLikeButton) {
     initializeLikeButtonFeature();

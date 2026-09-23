@@ -1,4 +1,4 @@
-fetch("https://raw.githubusercontent.com/hoeci/sort-play/main/sort-play.js")
+fetch("https://raw.githubusercontent.com/mist142/sort-play/main/sort-play.js")
     .then(res => res.text())
     .then(content => new Blob([content], { type: "application/javascript" }))
     .then(URL.createObjectURL)

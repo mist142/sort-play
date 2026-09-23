@@ -1,12 +1,13 @@
 [
   {
-    "name": "Sort Play",
-    "description": "The ultimate toolkit for your music library. Sort, filter, and create playlists.",
+    "name": "Sort Play (OpenRouter)",
+    "description": "Fork of Sort Play with AI Pick powered by free OpenRouter models instead of Gemini. Sort, filter, and create playlists.",
     "preview": "assets/cover.png",
     "main": "sort-play-loader.mjs",
     "readme": "assets/info.md",
     "authors": [
-        { "name": "hoeci", "url": "https://github.com/hoeci" }
+        { "name": "hoeci", "url": "https://github.com/hoeci" },
+        { "name": "mist142", "url": "https://github.com/mist142" }
     ],
     "tags": [
       "sort",
