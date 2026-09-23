@@ -16,6 +16,8 @@
 >
 > Free models are rate-limited, so if a request fails, wait a moment or pick a different model.
 >
+> **Planned:** [AOTY (Album of the Year)](https://www.albumoftheyear.org) integration is coming in a future update.
+>
 > **Disclaimer:** The code changes in this fork and this description were written by Claude (Anthropic's AI assistant). They haven't been reviewed by the original author. Use at your own risk.
 
 ---
