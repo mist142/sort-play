@@ -18,7 +18,9 @@
 >
 > **Planned:** [AOTY (Album of the Year)](https://www.albumoftheyear.org) integration is coming in a future update.
 >
-> **Disclaimer:** The code changes in this fork and this description were written by Claude (Anthropic's AI assistant). They haven't been reviewed by the original author. Use at your own risk.
+> **Disclaimer:** The code changes in this fork and this description were written by Claude (Anthropic's AI assistant).
+> 
+i haven't reviewed this code for safety yet, just had Claude make it for personal use and thought I'd share. Use at your own risk.
 
 ---
 
